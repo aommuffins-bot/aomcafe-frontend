@@ -1,1 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>A.O.M Cafe 進銷存系統</title>
+<style>
+  body { font-family: "微軟正黑體", sans-serif; background:#F3EFE3; color:#0B2E21; margin:0; padding:0; }
+  header { background:#0B2E21; color:#F3EFE3; padding:16px 24px; }
+  header h1 { margin:0; font-size:20px; }
+  .container { max-width:1000px; margin:24px auto; padding:0 16px; }
+  .card { background:#fff; border:1px solid #C5A047; border-radius:6px; padding:16px; margin-bottom:16px; }
+  .card h2 { margin-top:0; color:#0B2E21; font-size:16px; border-bottom:2px solid #C5A047; padding-bottom:8px; }
+  label { display:block; margin:8px 0 4px; font-size:13px; }
+  input, select { width:100%; padding:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; }
+  button { background:#0B2E21; color:#C5A047; border:none; padding:8px 16px; border-radius:4px;
+           cursor:pointer; margin-top:10px; font-weight:bold; }
+  button:hover { background:#1D4D3A; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+  th, td { border:1px solid #ddd; padding:6px; text-align:center; }
+  th { background:#0B2E21; color:#C5A047; }
+  tr:nth-child(even) { background:#F3EFE3; }
+  #loginStatus { font-size:13px; color:#8B2D2D; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  .note { font-size:12px; color:#6B4A2E; }
+</style>
+</head>
+<body>
+<header><h1>☕ A.O.M Cafe 進銷存系統（線上版）</h1></header>
+<div class="container">
+
+  <div class="card">
+    <h2>1. 登入</h2>
+    <div class="row">
+      <div><label>帳號</label><input id="username" placeholder="請輸入帳號"></div>
+      <div><label>密碼</label><input id="password" type="password" placeholder="請輸入密碼"></div>
+    </div>
+    <button onclick="login()">登入</button>
+    <div id="loginStatus"></div>
+    <p class="note">首次啟動可能需等待20~60秒（免費方案伺服器冷啟動中，請耐心等候）</p>
+  </div>
+
+  <div class="card">
+    <h2>2. 出貨登錄（FIFO自動扣帳）</h2>
+    <div class="row">
+      <div><label>SKU編號</label><input id="issueSkuNo" value="1"></div>
+      <div><label>出貨量(g)</label><input id="issueQty" value="200"></div>
+      <div><label>售價(NT$/100g)</label><input id="issuePrice" value="280"></div>
+      <div><label>通路</label>
+        <select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select>
+      </div>
+    </div>
+    <button onclick="issueStock()">送出出貨</button>
+    <pre id="issueResult"></pre>
+  </div>
+
+  <div class="card">
+    <h2>3. 即時庫存查詢</h2>
+    <button onclick="loadInventory()">重新整理庫存</button>
+    <table id="inventoryTable">
+      <thead><tr><th>SKU</th><th>品名</th><th>庫存量(g)</th><th>批次數</th><th>最舊批次庫齡(天)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// 已指向正式Render部署網址
 const API_BASE = "https://fifo-zpli.onrender.com";
+let accessToken = null;
+
+async function login() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+  const body = new URLSearchParams({ username, password });
+  document.getElementById("loginStatus").innerText = "登入中，若伺服器剛啟動請稍候...";
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, { method: "POST", body });
+    if (!res.ok) {
+      document.getElementById("loginStatus").innerText = "登入失敗，請確認帳密";
+      return;
+    }
+    const data = await res.json();
+    accessToken = data.access_token;
+    document.getElementById("loginStatus").innerText =
+      `登入成功！角色：${data.role}，門店：${data.store_id}`;
+  } catch (err) {
+    document.getElementById("loginStatus").innerText = "連線失敗，請確認網路或稍後再試";
+  }
+}
+
+function authHeaders() {
+  return { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" };
+}
+
+async function issueStock() {
+  if (!accessToken) { alert("請先登入"); return; }
+  const payload = {
+    sku_no: parseInt(document.getElementById("issueSkuNo").value),
+    qty_g: parseFloat(document.getElementById("issueQty").value),
+    sell_price_ntd_per_100g: parseFloat(document.getElementById("issuePrice").value),
+    channel: document.getElementById("issueChannel").value,
+  };
+  const res = await fetch(`${API_BASE}/transactions/issue`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  document.getElementById("issueResult").innerText = JSON.stringify(data, null, 2);
+  loadInventory();
+}
+
+async function loadInventory() {
+  if (!accessToken) { alert("請先登入"); return; }
+  const res = await fetch(`${API_BASE}/inventory?store_id=1`, { headers: authHeaders() });
+  const data = await res.json();
+  const tbody = document.querySelector("#inventoryTable tbody");
+  tbody.innerHTML = "";
+  data.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.sku_no}</td><td>${p.name}</td><td>${p.total_qty_g}</td>
+                    <td>${p.batch_count}</td><td>${p.oldest_batch_age_days ?? "-"}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
