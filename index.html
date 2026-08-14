@@ -12,6 +12,7 @@ header h1{margin:0;font-size:20px}
 .card h2{margin-top:0;color:#0B2E21;font-size:16px;border-bottom:2px solid #C5A047;padding-bottom:8px}
 label{display:block;margin:8px 0 4px;font-size:13px;font-weight:bold}
 input,select{width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:4px;font-size:14px}
+input[readonly]{background:#f5f5f5;color:#555}
 button{background:#0B2E21;color:#C5A047;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;font-weight:bold;font-size:14px}
 button:hover{background:#1D4D3A}
 button:disabled{background:#ccc;cursor:not-allowed}
@@ -46,7 +47,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 </style>
 </head>
 <body>
-<header><h1>A.O.M Cafe 進銷存系統</h1></header>
+<header><h1>A.O.M Cafe 進銷存系統（100 SKU 完整版）</h1></header>
 <div class="container">
 <div class="card" id="loginCard">
 <h2>系統登入</h2>
@@ -65,6 +66,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="nav-tab" onclick="showTab('issue')">出貨</div>
 <div class="nav-tab" onclick="showTab('reports')">報表</div>
 </div>
+
 <div class="tab-content active" id="tab-inventory">
 <div class="card">
 <h2>庫存查詢</h2>
@@ -73,37 +75,45 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <table id="inventoryTable"><thead><tr><th>SKU</th><th>品名</th><th>庫存量</th><th>批次數</th><th>狀態</th></tr></thead><tbody></tbody></table>
 </div>
 </div>
+
 <div class="tab-content" id="tab-receive">
 <div class="card">
-<h2>進貨登錄</h2>
+<h2>進貨登錄（SKU 資料自動帶入，來自 100 SKU 商品主檔）</h2>
 <div class="row">
-<div><label>SKU 編號</label><select id="receiveSkuNo"><option value="">請選擇 SKU</option></select></div>
+<div><label>SKU 編號 / 品名</label><select id="receiveSkuNo"><option value="">請選擇 SKU（共 100 項）</option></select></div>
 <div><label>進貨量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
-<div><label>單位成本</label><input id="receiveCost" value="200" type="number"></div>
-<div><label>供應商</label><input id="receiveSupplier" value="supplier"></div>
+<div><label>單位成本 (NT$/100g)</label><input id="receiveCost" value="200" type="number"></div>
+<div><label>供應商</label><input id="receiveSupplier" value="" placeholder="請輸入供應商名稱"></div>
 </div>
 <div class="row">
-<div><label>產區</label><input id="receiveOrigin" placeholder="產區（自動填入）" readonly></div>
-<div><label>風味</label><input id="receiveFlavor" placeholder="風味（自動填入）" readonly></div>
-<div><label>處理法</label><input id="receiveProcess" placeholder="處理法（自動填入）" readonly></div>
+<div><label>洲別</label><input id="receiveContinent" readonly></div>
+<div><label>產區（國家）</label><input id="receiveOrigin" readonly></div>
+<div><label>品種</label><input id="receiveVariety" readonly></div>
+<div><label>處理法</label><input id="receiveProcess" readonly></div>
 </div>
-<button onclick="doReceive()">進貨</button>
+<div class="row">
+<div style="flex:2"><label>風味描述</label><input id="receiveFlavor" readonly></div>
+<div><label>評等</label><input id="receiveRating" readonly></div>
+</div>
+<button onclick="doReceive()">確認進貨</button>
 <div id="receiveResult"></div>
 </div>
 </div>
+
 <div class="tab-content" id="tab-issue">
 <div class="card">
 <h2>出貨登錄</h2>
 <div class="row">
-<div><label>SKU 編號</label><select id="issueSkuNo"><option value="">請選擇 SKU</option></select></div>
+<div><label>SKU 編號 / 品名</label><select id="issueSkuNo"><option value="">請選擇 SKU（共 100 項）</option></select></div>
 <div><label>出貨量 (g)</label><input id="issueQty" value="200" type="number"></div>
-<div><label>售價</label><input id="issuePrice" value="280" type="number"></div>
+<div><label>售價 (NT$/100g)</label><input id="issuePrice" value="280" type="number"></div>
 <div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
 </div>
-<button onclick="doIssue()">出貨</button>
+<button onclick="doIssue()">確認出貨</button>
 <div id="issueResult"></div>
 </div>
 </div>
+
 <div class="tab-content" id="tab-reports">
 <div class="card">
 <h2>報表輸出</h2>
@@ -120,6 +130,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div id="reportResult"></div>
 </div>
 </div>
+
 </div>
 </div>
 <script>
@@ -169,30 +180,49 @@ fetch(API+'/products',{headers:hdrs(),mode:'cors'}).then(function(r){return r.js
 products = d;
 var skuSelect1 = document.getElementById("receiveSkuNo");
 var skuSelect2 = document.getElementById("issueSkuNo");
-skuSelect1.innerHTML = '<option value="">請選擇 SKU</option>';
-skuSelect2.innerHTML = '<option value="">請選擇 SKU</option>';
+skuSelect1.innerHTML = '<option value="">請選擇 SKU（共 '+d.length+' 項）</option>';
+skuSelect2.innerHTML = '<option value="">請選擇 SKU（共 '+d.length+' 項）</option>';
+
 d.forEach(function(p){
+var label = p.sku_no + ' - ' + p.name + '（' + p.country + '）';
+
 var opt1 = document.createElement("option");
 opt1.value = p.sku_no;
-opt1.textContent = p.sku_no + ' - ' + p.name;
+opt1.textContent = label;
 opt1.dataset.continent = p.continent;
 opt1.dataset.country = p.country;
 opt1.dataset.process = p.process;
+opt1.dataset.variety = p.variety;
 opt1.dataset.flavor = p.flavor;
+opt1.dataset.rating = p.rating;
 skuSelect1.appendChild(opt1);
 
 var opt2 = document.createElement("option");
 opt2.value = p.sku_no;
-opt2.textContent = p.sku_no + ' - ' + p.name;
+opt2.textContent = label;
 skuSelect2.appendChild(opt2);
 });
 
 skuSelect1.addEventListener('change', function(){
 var selected = this.options[this.selectedIndex];
-document.getElementById("receiveOrigin").value = selected.dataset.continent + ' / ' + selected.dataset.country;
-document.getElementById("receiveFlavor").value = selected.dataset.flavor;
+if(!this.value){
+document.getElementById("receiveContinent").value = "";
+document.getElementById("receiveOrigin").value = "";
+document.getElementById("receiveVariety").value = "";
+document.getElementById("receiveProcess").value = "";
+document.getElementById("receiveFlavor").value = "";
+document.getElementById("receiveRating").value = "";
+return;
+}
+document.getElementById("receiveContinent").value = selected.dataset.continent;
+document.getElementById("receiveOrigin").value = selected.dataset.country;
+document.getElementById("receiveVariety").value = selected.dataset.variety;
 document.getElementById("receiveProcess").value = selected.dataset.process;
+document.getElementById("receiveFlavor").value = selected.dataset.flavor;
+document.getElementById("receiveRating").value = selected.dataset.rating;
 });
+}).catch(function(e){
+console.error("載入商品資料失敗:", e);
 });
 }
 
@@ -203,13 +233,17 @@ el.textContent="載入中...";
 fetch(API+'/inventory?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){return r.json();}).then(function(d){
 tb.innerHTML="";
 if(d.length===0){tb.innerHTML='<tr><td colspan="5">無資料</td></tr>';}
-else{d.forEach(function(p){
+else{
+var hasStock = d.filter(function(p){return p.total_qty_g>0;});
+var displayList = hasStock.length > 0 ? hasStock : d.slice(0, 20);
+displayList.forEach(function(p){
 var tr=document.createElement("tr");
 var b=p.total_qty_g>0?'<span class="badge badge-success">有庫存</span>':'<span class="badge badge-warning">缺貨</span>';
 tr.innerHTML='<td>'+p.sku_no+'</td><td>'+p.name+'</td><td>'+p.total_qty_g+'</td><td>'+p.batch_count+'</td><td>'+b+'</td>';
 tb.appendChild(tr);
-});}
-el.textContent="已載入"+d.length+"筆";
+});
+}
+el.textContent="已載入 "+d.length+" 筆 SKU 資料（顯示有庫存或前20筆）";
 }).catch(function(e){el.textContent=e.message;});
 }
 
@@ -217,6 +251,7 @@ function doReceive() {
 var el=document.getElementById("receiveResult");
 var skuSelect = document.getElementById("receiveSkuNo");
 if(!skuSelect.value){el.innerHTML='<div class="alert alert-error">請選擇 SKU</div>';return;}
+if(!document.getElementById("receiveSupplier").value.trim()){el.innerHTML='<div class="alert alert-error">請輸入供應商</div>';return;}
 var payload={
 "sku_no": Number(skuSelect.value),
 "qty_g": Number(document.getElementById("receiveQty").value),
