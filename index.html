@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A.O.M Cafe 進銷存系統</title>
+<style>
+body{font-family:"微軟正黑體",sans-serif;background:#F3EFE3;color:#0B2E21;margin:0;padding:0}
+header{background:#0B2E21;color:#F3EFE3;padding:16px 24px}
+header h1{margin:0;font-size:20px}
+.container{max-width:1200px;margin:24px auto;padding:0 16px}
+.card{background:#fff;border:1px solid #C5A047;border-radius:6px;padding:16px;margin-bottom:16px}
+.card h2{margin-top:0;color:#0B2E21;font-size:16px;border-bottom:2px solid #C5A047;padding-bottom:8px}
+label{display:block;margin:8px 0 4px;font-size:13px;font-weight:bold}
+input,select{width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:4px;font-size:14px}
+button{background:#0B2E21;color:#C5A047;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;font-weight:bold;font-size:14px}
+button:hover{background:#1D4D3A}
+button:disabled{background:#ccc;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+th,td{border:1px solid #ddd;padding:8px;text-align:center}
+th{background:#0B2E21;color:#C5A047}
+tr:nth-child(even){background:#F3EFE3}
+#loginStatus{font-size:13px;margin-top:8px}
+.status-success{color:#2E7D32}
+.status-error{color:#C62828}
+.status-info{color:#1565C0}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>div{flex:1;min-width:200px}
+.note{font-size:12px;color:#6B4A2E;margin-top:8px}
+.nav-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.nav-tab{padding:8px 16px;background:#fff;border:1px solid #C5A047;border-radius:4px 4px 0 0;cursor:pointer;font-weight:bold}
+.nav-tab.active{background:#0B2E21;color:#C5A047}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold}
+.badge-success{background:#4CAF50;color:#fff}
+.badge-warning{background:#FF9800;color:#fff}
+.alert{padding:12px;border-radius:4px;margin-bottom:12px}
+.alert-info{background:#E3F2FD;border:1px solid #2196F3;color:#1565C0}
+.alert-success{background:#E8F5E9;border:1px solid #4CAF50;color:#2E7D32}
+.alert-error{background:#FFEBEE;border:1px solid #F44336;color:#C62828}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.stat-card{background:#fff;border:1px solid #C5A047;border-radius:6px;padding:16px;text-align:center}
+.stat-value{font-size:28px;font-weight:bold;color:#0B2E21}
+.stat-label{font-size:13px;color:#666;margin-top:4px}
+</style>
+</head>
+<body>
+<header><h1>A.O.M Cafe 進銷存系統</h1></header>
+<div class="container">
+
+<div class="card" id="loginCard">
+<h2>系統登入</h2>
+<div class="row">
+<div><label>帳號</label><input id="username" placeholder="請輸入帳號"></div>
+<div><label>密碼</label><input id="password" type="password" placeholder="請輸入密碼"></div>
+</div>
+<button onclick="doLogin()" id="loginBtn">登入系統</button>
+<div id="loginStatus"></div>
+<p class="note">預設帳號：admin / 密碼：admin123</p>
+</div>
+
+<div id="mainApp" style="display:none;">
+
+<div class="nav-tabs">
+<div class="nav-tab active" onclick="showTab('inventory')">庫存查詢</div>
+<div class="nav-tab" onclick="showTab('receive')">進貨登錄</div>
+<div class="nav-tab" onclick="showTab('issue')">出貨登錄</div>
+<div class="nav-tab" onclick="showTab('reports')">報表輸出</div>
+</div>
+
+<div class="tab-content active" id="tab-inventory">
+<div class="card">
+<h2>即時庫存查詢</h2>
+<div class="alert alert-info"><span id="inventoryStatus">點擊「重新整理」載入庫存資料</span></div>
+<button onclick="loadInventory()" id="loadInvBtn">重新整理庫存</button>
+<table id="inventoryTable">
+<thead><tr><th>SKU</th><th>品名</th><th>庫存量 (g)</th><th>批次數</th><th>狀態</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+<div class="tab-content" id="tab-receive">
+<div class="card">
+<h2>進貨登錄</h2>
+<div class="row">
+<div><label>SKU 編號</label><input id="receiveSkuNo" value="1" type="number"></div>
+<div><label>進貨量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
+<div><label>單位成本</label><input id="receiveCost" value="200" type="number"></div>
+<div><label>供應商</label><input id="receiveSupplier" value="default_supplier"></div>
+</div>
+<button onclick="doReceive()" id="receiveBtn">確認進貨</button>
+<div id="receiveResult"></div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-issue">
+<div class="card">
+<h2>出貨登錄</h2>
+<div class="row">
+<div><label>SKU 編號</label><input id="issueSkuNo" value="1" type="number"></div>
+<div><label>出貨量 (g)</label><input id="issueQty" value="200" type="number"></div>
+<div><label>售價</label><input id="issuePrice" value="280" type="number"></div>
+<div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
+</div>
+<button onclick="doIssue()" id="issueBtn">確認出貨</button>
+<div id="issueResult"></div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-reports">
+<div class="card">
+<h2>報表輸出</h2>
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-value" id="statTotalSKU">-</div><div class="stat-label">總 SKU 數</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalQty">-</div><div class="stat-label">總庫存量</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalBatch">-</div><div class="stat-label">總批次數</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalTrans">-</div><div class="stat-label">總交易筆數</div></div>
+</div>
+<div style="margin-top:16px;">
+<button onclick="exportReport('inventory')">匯出庫存報表</button>
+<button onclick="exportReport('transactions')">匯出交易報表</button>
+</div>
+<div id="reportResult"></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+var API_BASE = "https://fifo-zpli.onrender.com";
+var accessToken = null;
+var currentUser = null;
+
+function showTab(name) {
+document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+document.getElementById('tab-' + name).classList.add('active');
+if (name === 'inventory') loadInventory();
+else if (name === 'reports') loadStats();
+}
+
+function doLogin() {
+var username = document.getElementById("username").value.trim();
+var password = document.getElementById("password").value;
+var statusEl = document.getElementById("loginStatus");
+var btn = document.getElementById("loginBtn");
+
+if (!username || !password) {
+statusEl.innerHTML = '<span class="status-error">請輸入帳號和密碼</span>';
+return;
+}
+
+btn.disabled = true;
+btn.innerHTML = '登入中...';
+statusEl.innerHTML = '<span class="status-info">連線中...</span>';
+
+var loginUrl = API_BASE + '/auth/login?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password);
+
+fetch(loginUrl, { method: "POST", mode: 'cors' })
+.then(function(res) {
+if (!res.ok) {
+return res.json().then(function(err) { throw new Error('登入失敗：' + res.status + ' ' + JSON.stringify(err)); });
+}
+return res.json();
+})
+.then(function(data) {
+accessToken = data.access_token;
+currentUser = data;
+statusEl.innerHTML = '<span class="status-success">登入成功！門店：' + data.store_id + '</span>';
+btn.innerHTML = '登入成功';
+document.getElementById("loginCard").style.display = "none";
+document.getElementById("mainApp").style.display = "block";
+setTimeout(loadInventory, 500);
+})
+.catch(function(err) {
+statusEl.innerHTML = '<span class="status-error">' + err.message + '</span>';
+btn.disabled = false;
+btn.innerHTML = '登入系統';
+});
+}
+
+function getHeaders() {
+return { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" };
+}
+
+function loadInventory() {
+var btn = document.getElementById("loadInvBtn");
+var statusEl = document.getElementById("inventoryStatus");
+var tbody = document.querySelector("#inventoryTable tbody");
+
+btn.disabled = true;
+btn.innerHTML = '載入中...';
+statusEl.textContent = "載入中...";
+
+fetch(API_BASE + '/inventory?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
+.then(function(res) { return res.json(); })
+.then(function(data) {
+tbody.innerHTML = "";
+if (data.length === 0) {
+tbody.innerHTML = '<tr><td colspan="5">目前無庫存資料</td></tr>';
+} else {
+data.forEach(function(p) {
+var tr = document.createElement("tr");
+var badge = p.total_qty_g > 0 ? '<span class="badge badge-success">有庫存</span>' : '<span class="badge badge-warning">缺貨</span>';
+tr.innerHTML = '<td>' + p.sku_no + '</td><td>' + p.name + '</td><td>' + p.total_qty_g + '</td><td>' + p.batch_count + '</td><td>' + badge + '</td>';
+tbody.appendChild(tr);
+});
+}
+statusEl.textContent = "已載入 " + data.length + " 筆資料";
+btn.innerHTML = '重新整理庫存';
+btn.disabled = false;
+})
+.catch(function(err) {
+statusEl.textContent = err.message;
+btn.innerHTML = '重新整理庫存';
+btn.disabled = false;
+});
+}
+
+function doReceive() {
+var btn = document.getElementById("receiveBtn");
+var resultEl = document.getElementById("receiveResult");
+
+var payload = {
+sku_no: parseInt(document.getElementById("receiveSkuNo").value),
+qty_g: parseFloat(document.getElementById("receiveQty").value),
+cost_per_100g: parseFloat(document.getElementById("receiveCost").value),
+supplier: document.getElementById("receiveSupplier").value.trim()
+};
+
+btn.disabled = true;
+btn.innerHTML = '處理中...';
+resultEl.innerHTML = '<div class="alert alert-info">進貨處理中...</div>';
+
+fetch(API_BASE + '/transactions/receive', {
+method: "POST",
+headers: getHeaders(),
+body: JSON.stringify(payload),
+mode: 'cors'
+})
+.then(function(res) { return res.json(); })
+.then(function(data) {
+resultEl.innerHTML = '<div class="alert alert-success">進貨成功！</div><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+setTimeout(function() { showTab('inventory'); }, 1500);
+})
+.catch(function(err) {
+resultEl.innerHTML = '<div class="alert alert-error">' + err.message + '</div>';
+btn.disabled = false;
+btn.innerHTML = '確認進貨';
+});
+}
+
+function doIssue() {
+var btn = document.getElementById("issueBtn");
+var resultEl = document.getElementById("issueResult");
+
+var payload = {
+sku_no: parseInt(document.getElementById("issueSkuNo").value),
+qty_g: parseFloat(document.getElementById("issueQty").value),
+sell_price_ntd_per_100g: parseFloat(document.getElementById("issuePrice").value),
+channel: document.getElementById("issueChannel").value
+};
+
+btn.disabled = true;
+btn.innerHTML = '處理中...';
+resultEl.innerHTML = '<div class="alert alert-info">出貨處理中...</div>';
+
+fetch(API_BASE + '/transactions/issue', {
+method: "POST",
+headers: getHeaders(),
+body: JSON.stringify(payload),
+mode: 'cors'
+})
+.then(function(res) { return res.json(); })
+.then(function(data) {
+resultEl.innerHTML = '<div class="alert alert-success">出貨成功！</div><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+setTimeout(function() { showTab('inventory'); }, 1500);
+})
+.catch(function(err) {
+resultEl.innerHTML = '<div class="alert alert-error">' + err.message + '</div>';
+btn.disabled = false;
+btn.innerHTML = '確認出貨';
+});
+}
+
+function loadStats() {
+fetch(API_BASE + '/inventory?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
+.then(function(res) { return res.json(); })
+.then(function(invData) {
+document.getElementById("statTotalSKU").textContent = invData.length;
+var totalQty = 0;
+var totalBatch = 0;
+invData.forEach(function(p) { totalQty += p.total_qty_g; totalBatch += p.batch_count; });
+document.getElementById("statTotalQty").textContent = totalQty;
+document.getElementById("statTotalBatch").textContent = totalBatch;
+
+fetch(API_BASE + '/transactions?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
+.then(function(res) { return res.json(); })
+.then(function(transData) {
+document.getElementById("statTotalTrans").textContent = transData.length;
+});
+});
+}
+
+function exportReport(type) {
+var resultEl = document.getElementById("reportResult");
+resultEl.innerHTML = '<div class="alert alert-info">產生報表中...</div>';
+
+fetch(API_BASE + '/reports/' + type + '?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
+.then(function(res) { return res.blob(); })
+.then(function(blob) {
+var url = window.URL.createObjectURL(blob);
+var a = document.createElement('a');
+a.href = url;
+a.download = type + '_report.csv';
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+window.URL.revokeObjectURL(url);
+resultEl.innerHTML = '<div class="alert alert-success">報表已下載</div>';
+})
+.catch(function(err) {
+resultEl.innerHTML = '<div class="alert alert-error">' + err.message + '</div>';
+});
+}
+</script>
+</body>
+</html>
