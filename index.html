@@ -38,6 +38,11 @@ tr:nth-child(even){background:#F3EFE3}
 .alert-info{background:#E3F2FD;border:1px solid #2196F3;color:#1565C0}
 .alert-success{background:#E8F5E9;border:1px solid #4CAF50;color:#2E7D32}
 .alert-error{background:#FFEBEE;border:1px solid #F44336;color:#C62828}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.stat-card{background:#fff;border:1px solid #C5A047;border-radius:6px;padding:16px;text-align:center}
+.stat-value{font-size:28px;font-weight:bold;color:#0B2E21}
+.stat-label{font-size:13px;color:#666;margin-top:4px}
+pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:11px}
 </style>
 </head>
 <body>
@@ -58,6 +63,7 @@ tr:nth-child(even){background:#F3EFE3}
 <div class="nav-tab active" onclick="showTab('inventory')">庫存</div>
 <div class="nav-tab" onclick="showTab('receive')">進貨</div>
 <div class="nav-tab" onclick="showTab('issue')">出貨</div>
+<div class="nav-tab" onclick="showTab('reports')">報表</div>
 </div>
 <div class="tab-content active" id="tab-inventory">
 <div class="card">
@@ -87,10 +93,26 @@ tr:nth-child(even){background:#F3EFE3}
 <div><label>SKU</label><input id="issueSkuNo" value="1" type="number"></div>
 <div><label>數量 (g)</label><input id="issueQty" value="200" type="number"></div>
 <div><label>售價</label><input id="issuePrice" value="280" type="number"></div>
-<div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option></select></div>
+<div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
 </div>
 <button onclick="doIssue()">出貨</button>
 <div id="issueResult"></div>
+</div>
+</div>
+<div class="tab-content" id="tab-reports">
+<div class="card">
+<h2>報表輸出</h2>
+<div class="stat-grid">
+<div class="stat-card"><div class="stat-value" id="statTotalSKU">-</div><div class="stat-label">總SKU數</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalQty">-</div><div class="stat-label">總庫存量</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalBatch">-</div><div class="stat-label">總批次數</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalTrans">-</div><div class="stat-label">總交易筆數</div></div>
+</div>
+<div style="margin-top:16px;">
+<button onclick="exportReport('inventory')">匯出庫存報表</button>
+<button onclick="exportReport('transactions')">匯出交易報表</button>
+</div>
+<div id="reportResult"></div>
 </div>
 </div>
 </div>
@@ -105,6 +127,7 @@ document.querySelectorAll('.nav-tab').forEach(function(t){t.classList.remove('ac
 document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
 document.getElementById('tab-'+name).classList.add('active');
 if(name==='inventory')loadInventory();
+else if(name==='reports')loadStats();
 }
 
 function doLogin() {
@@ -117,7 +140,7 @@ btn.disabled=true;btn.innerHTML='登入中...';
 el.innerHTML='<span class="status-info">連線中...</span>';
 var url = API+'/auth/login?username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p);
 fetch(url,{method:"POST",mode:'cors'}).then(function(r){
-if(!r.ok)return r.json().then(function(e){throw new Error('登入失敗:'+r.status);});
+if(!r.ok)return r.json().then(function(e){throw new Error('登入失敗:'+r.status+' '+JSON.stringify(e));});
 return r.json();
 }).then(function(d){
 token=d.access_token;user=d;
@@ -151,12 +174,19 @@ el.textContent="已載入"+d.length+"筆";
 }).catch(function(e){el.textContent=e.message;});
 }
 
+// 進貨：JSON Body 欄位名稱必須與後端 ReceiveRequest 完全一致
+// sku_no, qty_g, cost_per_100g, supplier
 function doReceive() {
 var el=document.getElementById("receiveResult");
-var p={sku_no:Number(document.getElementById("receiveSkuNo").value),qty_g:Number(document.getElementById("receiveQty").value),cost_per_100g:Number(document.getElementById("receiveCost").value),supplier:document.getElementById("receiveSupplier").value.trim()};
+var payload={
+"sku_no": Number(document.getElementById("receiveSkuNo").value),
+"qty_g": Number(document.getElementById("receiveQty").value),
+"cost_per_100g": Number(document.getElementById("receiveCost").value),
+"supplier": document.getElementById("receiveSupplier").value.trim()
+};
 el.innerHTML='<div class="alert alert-info">處理中...</div>';
-fetch(API+'/transactions/receive',{method:"POST",headers:hdrs(),body:JSON.stringify(p),mode:'cors'}).then(function(r){
-if(!r.ok)return r.json().then(function(e){throw new Error('失敗:'+r.status);});
+fetch(API+'/transactions/receive',{method:"POST",headers:hdrs(),body:JSON.stringify(payload),mode:'cors'}).then(function(r){
+if(!r.ok)return r.json().then(function(e){throw new Error('失敗:'+r.status+' '+JSON.stringify(e));});
 return r.json();
 }).then(function(d){
 el.innerHTML='<div class="alert alert-success">成功！</div><pre>'+JSON.stringify(d,null,2)+'</pre>';
@@ -164,16 +194,49 @@ setTimeout(function(){showTab('inventory');},1500);
 }).catch(function(e){el.innerHTML='<div class="alert alert-error">'+e.message+'</div>';});
 }
 
+// 出貨：JSON Body 欄位名稱必須與後端 IssueRequest 完全一致
+// sku_no, qty_g, sell_price_ntd_per_100g, channel
 function doIssue() {
 var el=document.getElementById("issueResult");
-var p={sku_no:Number(document.getElementById("issueSkuNo").value),qty_g:Number(document.getElementById("issueQty").value),sell_price_ntd_per_100g:Number(document.getElementById("issuePrice").value),channel:document.getElementById("issueChannel").value};
+var payload={
+"sku_no": Number(document.getElementById("issueSkuNo").value),
+"qty_g": Number(document.getElementById("issueQty").value),
+"sell_price_ntd_per_100g": Number(document.getElementById("issuePrice").value),
+"channel": document.getElementById("issueChannel").value
+};
 el.innerHTML='<div class="alert alert-info">處理中...</div>';
-fetch(API+'/transactions/issue',{method:"POST",headers:hdrs(),body:JSON.stringify(p),mode:'cors'}).then(function(r){
-if(!r.ok)return r.json().then(function(e){throw new Error('失敗:'+r.status);});
+fetch(API+'/transactions/issue',{method:"POST",headers:hdrs(),body:JSON.stringify(payload),mode:'cors'}).then(function(r){
+if(!r.ok)return r.json().then(function(e){throw new Error('失敗:'+r.status+' '+JSON.stringify(e));});
 return r.json();
 }).then(function(d){
 el.innerHTML='<div class="alert alert-success">成功！</div><pre>'+JSON.stringify(d,null,2)+'</pre>';
 setTimeout(function(){showTab('inventory');},1500);
+}).catch(function(e){el.innerHTML='<div class="alert alert-error">'+e.message+'</div>';});
+}
+
+function loadStats() {
+fetch(API+'/inventory?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){return r.json();}).then(function(invData){
+document.getElementById("statTotalSKU").textContent=invData.length;
+var totalQty=0,totalBatch=0;
+invData.forEach(function(p){totalQty+=p.total_qty_g;totalBatch+=p.batch_count;});
+document.getElementById("statTotalQty").textContent=totalQty;
+document.getElementById("statTotalBatch").textContent=totalBatch;
+fetch(API+'/transactions?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){return r.json();}).then(function(transData){
+document.getElementById("statTotalTrans").textContent=transData.length;
+});
+});
+}
+
+function exportReport(type) {
+var el=document.getElementById("reportResult");
+el.innerHTML='<div class="alert alert-info">產生報表中...</div>';
+fetch(API+'/reports/'+type+'?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){return r.blob();}).then(function(blob){
+var url=window.URL.createObjectURL(blob);
+var a=document.createElement('a');
+a.href=url;a.download=type+'_report.csv';
+document.body.appendChild(a);a.click();document.body.removeChild(a);
+window.URL.revokeObjectURL(url);
+el.innerHTML='<div class="alert alert-success">報表已下載</div>';
 }).catch(function(e){el.innerHTML='<div class="alert alert-error">'+e.message+'</div>';});
 }
 </script>
