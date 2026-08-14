@@ -162,17 +162,17 @@ btn.innerHTML = '登入中...';
 statusEl.innerHTML = '<span class="status-info">連線中，若伺服器剛啟動請稍候...</span>';
 
 try {
-const body = new URLSearchParams({ username, password });
-const res = await fetch(API_BASE + '/auth/login', { 
-method: "POST", 
-body: body,
+// 修正：使用 Query 參數格式，不是 URLSearchParams
+const loginUrl = API_BASE + '/auth/login?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password);
+const res = await fetch(loginUrl, { 
+method: "POST",
 mode: 'cors',
 credentials: 'include'
 });
 
 if (!res.ok) {
-const errText = await res.text();
-throw new Error('登入失敗：' + res.status + ' ' + errText);
+const errData = await res.json().catch(() => ({ detail: res.statusText }));
+throw new Error('登入失敗：' + res.status + ' ' + JSON.stringify(errData));
 }
 
 const data = await res.json();
@@ -267,118 +267,4 @@ method: "POST",
 headers: authHeaders(),
 body: JSON.stringify(payload),
 mode: 'cors',
-credentials: 'include'
-});
-
-if (!res.ok) {
-const errData = await res.json().catch(() => ({ detail: res.statusText }));
-throw new Error('進貨失敗：' + (errData.detail || res.status));
-}
-
-const data = await res.json();
-resultEl.innerHTML = '<div class="alert alert-success">✅ 進貨成功！</div><div class="result-box">' + JSON.stringify(data, null, 2) + '</div>';
-
-setTimeout(function() { switchTab('inventory'); }, 1500);
-
-} catch (err) {
-resultEl.innerHTML = '<div class="alert alert-error">❌ ' + err.message + '</div>';
-} finally {
-btn.disabled = false;
-btn.innerHTML = '✅ 確認進貨';
-}
-}
-
-async function issueStock() {
-const btn = document.getElementById("issueBtn");
-const resultEl = document.getElementById("issueResult");
-
-const payload = {
-sku_no: parseInt(document.getElementById("issueSkuNo").value),
-qty_g: parseFloat(document.getElementById("issueQty").value),
-sell_price_ntd_per_100g: parseFloat(document.getElementById("issuePrice").value),
-channel: document.getElementById("issueChannel").value,
-};
-
-btn.disabled = true;
-btn.innerHTML = '處理中...';
-resultEl.innerHTML = '<div class="alert alert-info">🔄 出貨處理中，請稍候...</div>';
-
-try {
-const res = await fetch(API_BASE + '/transactions/issue', {
-method: "POST",
-headers: authHeaders(),
-body: JSON.stringify(payload),
-mode: 'cors',
-credentials: 'include'
-});
-
-if (!res.ok) {
-const errData = await res.json().catch(() => ({ detail: res.statusText }));
-throw new Error('出貨失敗：' + (errData.detail || res.status));
-}
-
-const data = await res.json();
-resultEl.innerHTML = '<div class="alert alert-success">✅ 出貨成功！</div><div class="result-box">' + JSON.stringify(data, null, 2) + '</div>';
-
-setTimeout(function() { switchTab('inventory'); }, 1500);
-
-} catch (err) {
-resultEl.innerHTML = '<div class="alert alert-error">❌ ' + err.message + '</div>';
-} finally {
-btn.disabled = false;
-btn.innerHTML = '✅ 確認出貨';
-}
-}
-
-async function loadStats() {
-try {
-const invRes = await fetch(API_BASE + '/inventory?store_id=' + currentUser.store_id, { 
-headers: authHeaders(), mode: 'cors', credentials: 'include' 
-});
-const invData = await invRes.json();
-
-document.getElementById("statTotalSKU").textContent = invData.length;
-document.getElementById("statTotalQty").textContent = invData.reduce(function(sum, p) { return sum + (p.total_qty_g || 0); }, 0);
-document.getElementById("statTotalBatch").textContent = invData.reduce(function(sum, p) { return sum + (p.batch_count || 0); }, 0);
-
-const transRes = await fetch(API_BASE + '/transactions?store_id=' + currentUser.store_id, { 
-headers: authHeaders(), mode: 'cors', credentials: 'include' 
-});
-const transData = await transRes.json();
-document.getElementById("statTotalTrans").textContent = transData.length;
-
-} catch (err) {
-document.getElementById("reportResult").innerHTML = '<div class="alert alert-error">❌ 載入統計失敗：' + err.message + '</div>';
-}
-}
-
-async function exportReport(reportType) {
-const resultEl = document.getElementById("reportResult");
-resultEl.innerHTML = '<div class="alert alert-info">🔄 產生報表中...</div>';
-
-try {
-const res = await fetch(API_BASE + '/reports/' + reportType + '?store_id=' + currentUser.store_id, { 
-headers: authHeaders(), mode: 'cors', credentials: 'include' 
-});
-
-if (!res.ok) throw new Error('匯出失敗：' + res.status);
-
-const blob = await res.blob();
-const downloadUrl = window.URL.createObjectURL(blob);
-const a = document.createElement('a');
-a.href = downloadUrl;
-a.download = reportType + '_report_' + new Date().toISOString().split('T')[0] + '.csv';
-document.body.appendChild(a);
-a.click();
-document.body.removeChild(a);
-window.URL.revokeObjectURL(downloadUrl);
-
-resultEl.innerHTML = '<div class="alert alert-success">✅ 報表已下載：' + reportType + '_report.csv</div>';
-
-} catch (err) {
-resultEl.innerHTML = '<div class="alert alert-error">❌ ' + err.message + '</div>';
-}
-}
-</script>
-</body>
-</html>
+credentials:
