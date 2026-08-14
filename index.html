@@ -56,7 +56,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 </div>
 <button onclick="doLogin()" id="loginBtn">登入</button>
 <div id="loginStatus"></div>
-<p class="note">預設帳號：admin / 密碼：admin123</p>
+<p class="note">預設帳號：admin / admin123</p>
 </div>
 <div id="mainApp" style="display:none;">
 <div class="nav-tabs">
@@ -77,16 +77,15 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="card">
 <h2>進貨登錄</h2>
 <div class="row">
-<div><label>SKU 編號</label><input id="receiveSkuNo" value="1" type="number"></div>
+<div><label>SKU 編號</label><select id="receiveSkuNo"><option value="">請選擇 SKU</option></select></div>
 <div><label>進貨量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
 <div><label>單位成本</label><input id="receiveCost" value="200" type="number"></div>
 <div><label>供應商</label><input id="receiveSupplier" value="supplier"></div>
 </div>
 <div class="row">
-<div><label>產區</label><input id="receiveOrigin" placeholder="例如：耶加雪菲"></div>
-<div><label>風味</label><input id="receiveFlavor" placeholder="例如：柑橘、茉莉花"></div>
-<div><label>處理法</label><input id="receiveProcess" placeholder="例如：日曬、水洗"></div>
-<div><label>烘焙日期</label><input id="receiveRoastDate" type="date"></div>
+<div><label>產區</label><input id="receiveOrigin" placeholder="產區（自動填入）" readonly></div>
+<div><label>風味</label><input id="receiveFlavor" placeholder="風味（自動填入）" readonly></div>
+<div><label>處理法</label><input id="receiveProcess" placeholder="處理法（自動填入）" readonly></div>
 </div>
 <button onclick="doReceive()">進貨</button>
 <div id="receiveResult"></div>
@@ -96,7 +95,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="card">
 <h2>出貨登錄</h2>
 <div class="row">
-<div><label>SKU 編號</label><input id="issueSkuNo" value="1" type="number"></div>
+<div><label>SKU 編號</label><select id="issueSkuNo"><option value="">請選擇 SKU</option></select></div>
 <div><label>出貨量 (g)</label><input id="issueQty" value="200" type="number"></div>
 <div><label>售價</label><input id="issuePrice" value="280" type="number"></div>
 <div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
@@ -127,6 +126,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 var API = "https://fifo-zpli.onrender.com";
 var token = null;
 var user = null;
+var products = [];
 
 function showTab(name) {
 document.querySelectorAll('.nav-tab').forEach(function(t){t.classList.remove('active');});
@@ -154,6 +154,7 @@ el.innerHTML='<span class="status-success">登入成功！門店:'+d.store_id+'<
 btn.innerHTML='登入成功';
 document.getElementById("loginCard").style.display="none";
 document.getElementById("mainApp").style.display="block";
+loadProducts();
 loadInventory();
 }).catch(function(e){
 el.innerHTML='<span class="status-error">'+e.message+'</span>';
@@ -162,6 +163,38 @@ btn.disabled=false;btn.innerHTML='登入';
 }
 
 function hdrs(){return{"Authorization":"Bearer "+token,"Content-Type":"application/json"};}
+
+function loadProducts() {
+fetch(API+'/products',{headers:hdrs(),mode:'cors'}).then(function(r){return r.json();}).then(function(d){
+products = d;
+var skuSelect1 = document.getElementById("receiveSkuNo");
+var skuSelect2 = document.getElementById("issueSkuNo");
+skuSelect1.innerHTML = '<option value="">請選擇 SKU</option>';
+skuSelect2.innerHTML = '<option value="">請選擇 SKU</option>';
+d.forEach(function(p){
+var opt1 = document.createElement("option");
+opt1.value = p.sku_no;
+opt1.textContent = p.sku_no + ' - ' + p.name;
+opt1.dataset.continent = p.continent;
+opt1.dataset.country = p.country;
+opt1.dataset.process = p.process;
+opt1.dataset.flavor = p.flavor;
+skuSelect1.appendChild(opt1);
+
+var opt2 = document.createElement("option");
+opt2.value = p.sku_no;
+opt2.textContent = p.sku_no + ' - ' + p.name;
+skuSelect2.appendChild(opt2);
+});
+
+skuSelect1.addEventListener('change', function(){
+var selected = this.options[this.selectedIndex];
+document.getElementById("receiveOrigin").value = selected.dataset.continent + ' / ' + selected.dataset.country;
+document.getElementById("receiveFlavor").value = selected.dataset.flavor;
+document.getElementById("receiveProcess").value = selected.dataset.process;
+});
+});
+}
 
 function loadInventory() {
 var el=document.getElementById("inventoryStatus");
@@ -182,15 +215,16 @@ el.textContent="已載入"+d.length+"筆";
 
 function doReceive() {
 var el=document.getElementById("receiveResult");
+var skuSelect = document.getElementById("receiveSkuNo");
+if(!skuSelect.value){el.innerHTML='<div class="alert alert-error">請選擇 SKU</div>';return;}
 var payload={
-"sku_no": Number(document.getElementById("receiveSkuNo").value),
+"sku_no": Number(skuSelect.value),
 "qty_g": Number(document.getElementById("receiveQty").value),
 "cost_per_100g": Number(document.getElementById("receiveCost").value),
 "supplier": document.getElementById("receiveSupplier").value.trim(),
 "origin": document.getElementById("receiveOrigin").value.trim(),
 "flavor": document.getElementById("receiveFlavor").value.trim(),
-"process": document.getElementById("receiveProcess").value.trim(),
-"roast_date": document.getElementById("receiveRoastDate").value
+"process": document.getElementById("receiveProcess").value.trim()
 };
 el.innerHTML='<div class="alert alert-info">處理中...</div>';
 fetch(API+'/transactions/receive',{method:"POST",headers:hdrs(),body:JSON.stringify(payload),mode:'cors'}).then(function(r){
@@ -204,8 +238,10 @@ setTimeout(function(){showTab('inventory');},1500);
 
 function doIssue() {
 var el=document.getElementById("issueResult");
+var skuSelect = document.getElementById("issueSkuNo");
+if(!skuSelect.value){el.innerHTML='<div class="alert alert-error">請選擇 SKU</div>';return;}
 var payload={
-"sku_no": Number(document.getElementById("issueSkuNo").value),
+"sku_no": Number(skuSelect.value),
 "qty_g": Number(document.getElementById("issueQty").value),
 "sell_price_ntd_per_100g": Number(document.getElementById("issuePrice").value),
 "channel": document.getElementById("issueChannel").value
