@@ -43,6 +43,7 @@ tr:nth-child(even){background:#F3EFE3}
 .stat-card{background:#fff;border:1px solid #C5A047;border-radius:6px;padding:16px;text-align:center}
 .stat-value{font-size:28px;font-weight:bold;color:#0B2E21}
 .stat-label{font-size:13px;color:#666;margin-top:4px}
+pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:11px}
 </style>
 </head>
 <body>
@@ -224,16 +225,21 @@ function doReceive() {
 var btn = document.getElementById("receiveBtn");
 var resultEl = document.getElementById("receiveResult");
 
+var skuNoVal = document.getElementById("receiveSkuNo").value;
+var qtyVal = document.getElementById("receiveQty").value;
+var costVal = document.getElementById("receiveCost").value;
+var supplierVal = document.getElementById("receiveSupplier").value.trim();
+
 var payload = {
-sku_no: parseInt(document.getElementById("receiveSkuNo").value),
-qty_g: parseFloat(document.getElementById("receiveQty").value),
-cost_per_100g: parseFloat(document.getElementById("receiveCost").value),
-supplier: document.getElementById("receiveSupplier").value.trim()
+"sku_no": Number(skuNoVal),
+"qty_g": Number(qtyVal),
+"cost_per_100g": Number(costVal),
+"supplier": supplierVal
 };
 
 btn.disabled = true;
 btn.innerHTML = '處理中...';
-resultEl.innerHTML = '<div class="alert alert-info">進貨處理中...</div>';
+resultEl.innerHTML = '<div class="alert alert-info">進貨處理中...</div><pre>傳送資料：' + JSON.stringify(payload, null, 2) + '</pre>';
 
 fetch(API_BASE + '/transactions/receive', {
 method: "POST",
@@ -241,7 +247,12 @@ headers: getHeaders(),
 body: JSON.stringify(payload),
 mode: 'cors'
 })
-.then(function(res) { return res.json(); })
+.then(function(res) {
+if (!res.ok) {
+return res.json().then(function(err) { throw new Error('進貨失敗：' + res.status + ' ' + JSON.stringify(err)); });
+}
+return res.json();
+})
 .then(function(data) {
 resultEl.innerHTML = '<div class="alert alert-success">進貨成功！</div><pre>' + JSON.stringify(data, null, 2) + '</pre>';
 setTimeout(function() { showTab('inventory'); }, 1500);
@@ -255,77 +266,4 @@ btn.innerHTML = '確認進貨';
 
 function doIssue() {
 var btn = document.getElementById("issueBtn");
-var resultEl = document.getElementById("issueResult");
-
-var payload = {
-sku_no: parseInt(document.getElementById("issueSkuNo").value),
-qty_g: parseFloat(document.getElementById("issueQty").value),
-sell_price_ntd_per_100g: parseFloat(document.getElementById("issuePrice").value),
-channel: document.getElementById("issueChannel").value
-};
-
-btn.disabled = true;
-btn.innerHTML = '處理中...';
-resultEl.innerHTML = '<div class="alert alert-info">出貨處理中...</div>';
-
-fetch(API_BASE + '/transactions/issue', {
-method: "POST",
-headers: getHeaders(),
-body: JSON.stringify(payload),
-mode: 'cors'
-})
-.then(function(res) { return res.json(); })
-.then(function(data) {
-resultEl.innerHTML = '<div class="alert alert-success">出貨成功！</div><pre>' + JSON.stringify(data, null, 2) + '</pre>';
-setTimeout(function() { showTab('inventory'); }, 1500);
-})
-.catch(function(err) {
-resultEl.innerHTML = '<div class="alert alert-error">' + err.message + '</div>';
-btn.disabled = false;
-btn.innerHTML = '確認出貨';
-});
-}
-
-function loadStats() {
-fetch(API_BASE + '/inventory?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
-.then(function(res) { return res.json(); })
-.then(function(invData) {
-document.getElementById("statTotalSKU").textContent = invData.length;
-var totalQty = 0;
-var totalBatch = 0;
-invData.forEach(function(p) { totalQty += p.total_qty_g; totalBatch += p.batch_count; });
-document.getElementById("statTotalQty").textContent = totalQty;
-document.getElementById("statTotalBatch").textContent = totalBatch;
-
-fetch(API_BASE + '/transactions?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
-.then(function(res) { return res.json(); })
-.then(function(transData) {
-document.getElementById("statTotalTrans").textContent = transData.length;
-});
-});
-}
-
-function exportReport(type) {
-var resultEl = document.getElementById("reportResult");
-resultEl.innerHTML = '<div class="alert alert-info">產生報表中...</div>';
-
-fetch(API_BASE + '/reports/' + type + '?store_id=' + currentUser.store_id, { headers: getHeaders(), mode: 'cors' })
-.then(function(res) { return res.blob(); })
-.then(function(blob) {
-var url = window.URL.createObjectURL(blob);
-var a = document.createElement('a');
-a.href = url;
-a.download = type + '_report.csv';
-document.body.appendChild(a);
-a.click();
-document.body.removeChild(a);
-window.URL.revokeObjectURL(url);
-resultEl.innerHTML = '<div class="alert alert-success">報表已下載</div>';
-})
-.catch(function(err) {
-resultEl.innerHTML = '<div class="alert alert-error">' + err.message + '</div>';
-});
-}
-</script>
-</body>
-</html>
+var resultEl = document.getE
