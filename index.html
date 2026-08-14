@@ -2,16 +2,16 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>A.O.M Cafe 進銷存</title>
+<title>A.O.M Cafe 進銷存系統</title>
 <style>
 body{font-family:Arial,sans-serif;background:#F3EFE3;color:#0B2E21;margin:0;padding:0}
 header{background:#0B2E21;color:#F3EFE3;padding:16px 24px}
 header h1{margin:0;font-size:20px}
-.container{max-width:1000px;margin:24px auto;padding:0 16px}
+.container{max-width:1200px;margin:24px auto;padding:0 16px}
 .card{background:#fff;border:1px solid #C5A047;border-radius:6px;padding:16px;margin-bottom:16px}
 .card h2{margin-top:0;color:#0B2E21;font-size:16px;border-bottom:2px solid #C5A047;padding-bottom:8px}
 label{display:block;margin:8px 0 4px;font-size:13px;font-weight:bold}
-input,select{width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:4px;font-size:14px}
+input,select,textarea{width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:4px;font-size:14px}
 button{background:#0B2E21;color:#C5A047;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin-top:10px;font-weight:bold;font-size:14px}
 button:hover{background:#1D4D3A}
 button:disabled{background:#ccc;cursor:not-allowed}
@@ -75,12 +75,18 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 </div>
 <div class="tab-content" id="tab-receive">
 <div class="card">
-<h2>進貨登錄</h2>
+<h2>進貨登錄（含完整資料）</h2>
 <div class="row">
-<div><label>SKU</label><input id="receiveSkuNo" value="1" type="number"></div>
-<div><label>數量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
-<div><label>成本</label><input id="receiveCost" value="200" type="number"></div>
-<div><label>供應商</label><input id="receiveSupplier" value="supplier"></div>
+<div><label>SKU 編號</label><input id="receiveSkuNo" value="1" type="number"></div>
+<div><label>進貨量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
+<div><label>單位成本</label><input id="receiveCost" value="200" type="number"></div>
+<div><label>供應商</label><input id="receiveSupplier" value="default_supplier"></div>
+</div>
+<div class="row">
+<div><label>產區</label><input id="receiveOrigin" placeholder="例如：耶加雪菲"></div>
+<div><label>風味</label><input id="receiveFlavor" placeholder="例如：柑橘、茉莉花"></div>
+<div><label>處理法</label><input id="receiveProcess" placeholder="例如：日曬、水洗"></div>
+<div><label>烘焙日期</label><input id="receiveRoastDate" type="date"></div>
 </div>
 <button onclick="doReceive()">進貨</button>
 <div id="receiveResult"></div>
@@ -90,8 +96,8 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="card">
 <h2>出貨登錄</h2>
 <div class="row">
-<div><label>SKU</label><input id="issueSkuNo" value="1" type="number"></div>
-<div><label>數量 (g)</label><input id="issueQty" value="200" type="number"></div>
+<div><label>SKU 編號</label><input id="issueSkuNo" value="1" type="number"></div>
+<div><label>出貨量 (g)</label><input id="issueQty" value="200" type="number"></div>
 <div><label>售價</label><input id="issuePrice" value="280" type="number"></div>
 <div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
 </div>
@@ -103,14 +109,14 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="card">
 <h2>報表輸出</h2>
 <div class="stat-grid">
-<div class="stat-card"><div class="stat-value" id="statTotalSKU">-</div><div class="stat-label">總SKU數</div></div>
+<div class="stat-card"><div class="stat-value" id="statTotalSKU">-</div><div class="stat-label">總 SKU 數</div></div>
 <div class="stat-card"><div class="stat-value" id="statTotalQty">-</div><div class="stat-label">總庫存量</div></div>
 <div class="stat-card"><div class="stat-value" id="statTotalBatch">-</div><div class="stat-label">總批次數</div></div>
 <div class="stat-card"><div class="stat-value" id="statTotalTrans">-</div><div class="stat-label">總交易筆數</div></div>
 </div>
 <div style="margin-top:16px;">
-<button onclick="exportReport('inventory')">匯出庫存報表</button>
-<button onclick="exportReport('transactions')">匯出交易報表</button>
+<button onclick="exportReport('inventory')">匯出庫存報表 (CSV)</button>
+<button onclick="exportReport('transactions')">匯出交易報表 (CSV)</button>
 </div>
 <div id="reportResult"></div>
 </div>
@@ -174,15 +180,17 @@ el.textContent="已載入"+d.length+"筆";
 }).catch(function(e){el.textContent=e.message;});
 }
 
-// 進貨：JSON Body 欄位名稱必須與後端 ReceiveRequest 完全一致
-// sku_no, qty_g, cost_per_100g, supplier
 function doReceive() {
 var el=document.getElementById("receiveResult");
 var payload={
 "sku_no": Number(document.getElementById("receiveSkuNo").value),
 "qty_g": Number(document.getElementById("receiveQty").value),
 "cost_per_100g": Number(document.getElementById("receiveCost").value),
-"supplier": document.getElementById("receiveSupplier").value.trim()
+"supplier": document.getElementById("receiveSupplier").value.trim(),
+"origin": document.getElementById("receiveOrigin").value.trim(),
+"flavor": document.getElementById("receiveFlavor").value.trim(),
+"process": document.getElementById("receiveProcess").value.trim(),
+"roast_date": document.getElementById("receiveRoastDate").value
 };
 el.innerHTML='<div class="alert alert-info">處理中...</div>';
 fetch(API+'/transactions/receive',{method:"POST",headers:hdrs(),body:JSON.stringify(payload),mode:'cors'}).then(function(r){
@@ -194,8 +202,6 @@ setTimeout(function(){showTab('inventory');},1500);
 }).catch(function(e){el.innerHTML='<div class="alert alert-error">'+e.message+'</div>';});
 }
 
-// 出貨：JSON Body 欄位名稱必須與後端 IssueRequest 完全一致
-// sku_no, qty_g, sell_price_ntd_per_100g, channel
 function doIssue() {
 var el=document.getElementById("issueResult");
 var payload={
