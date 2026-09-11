@@ -47,7 +47,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 </style>
 </head>
 <body>
-<header><h1>A.O.M Cafe 進銷存系統（100 SKU 完整版）</h1></header>
+<header><h1>A.O.M Cafe 進銷存系統（咖啡生豆 SKU）</h1></header>
 <div class="container">
 <div class="card" id="loginCard">
 <h2>系統登入</h2>
@@ -57,7 +57,6 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 </div>
 <button onclick="doLogin()" id="loginBtn">登入</button>
 <div id="loginStatus"></div>
-<p class="note">預設帳號：admin / admin123</p>
 </div>
 <div id="mainApp" style="display:none;">
 <div class="nav-tabs">
@@ -78,9 +77,9 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 
 <div class="tab-content" id="tab-receive">
 <div class="card">
-<h2>進貨登錄（SKU 資料自動帶入，來自 100 SKU 商品主檔）</h2>
+<h2>進貨登錄（限管理者）</h2>
 <div class="row">
-<div><label>SKU 編號 / 品名</label><select id="receiveSkuNo"><option value="">請選擇 SKU（共 100 項）</option></select></div>
+<div><label>SKU 編號 / 品名</label><select id="receiveSkuNo"><option value="">請選擇 SKU</option></select></div>
 <div><label>進貨量 (g)</label><input id="receiveQty" value="1000" type="number"></div>
 <div><label>單位成本 (NT$/100g)</label><input id="receiveCost" value="200" type="number"></div>
 <div><label>供應商</label><input id="receiveSupplier" value="" placeholder="請輸入供應商名稱"></div>
@@ -104,10 +103,18 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="card">
 <h2>出貨登錄</h2>
 <div class="row">
-<div><label>SKU 編號 / 品名</label><select id="issueSkuNo"><option value="">請選擇 SKU（共 100 項）</option></select></div>
+<div><label>SKU 編號 / 品名</label><select id="issueSkuNo"><option value="">請選擇 SKU</option></select></div>
 <div><label>出貨量 (g)</label><input id="issueQty" value="200" type="number"></div>
 <div><label>售價 (NT$/100g)</label><input id="issuePrice" value="280" type="number"></div>
-<div><label>通路</label><select id="issueChannel"><option>零售</option><option>B2B</option><option>EC</option></select></div>
+<div><label>通路</label>
+<select id="issueChannelSelect" onchange="onChannelSelectChange()">
+<option value="零售">零售</option>
+<option value="B2B">B2B</option>
+<option value="EC">EC</option>
+<option value="__custom__">其他（自訂輸入）</option>
+</select>
+<input id="issueChannelCustom" placeholder="請輸入自訂通路名稱" style="display:none;margin-top:6px;">
+</div>
 </div>
 <button onclick="doIssue()">確認出貨</button>
 <div id="issueResult"></div>
@@ -116,7 +123,7 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 
 <div class="tab-content" id="tab-reports">
 <div class="card">
-<h2>報表輸出</h2>
+<h2>報表輸出（限管理者）</h2>
 <div class="stat-grid">
 <div class="stat-card"><div class="stat-value" id="statTotalSKU">-</div><div class="stat-label">總 SKU 數</div></div>
 <div class="stat-card"><div class="stat-value" id="statTotalQty">-</div><div class="stat-label">總庫存量</div></div>
@@ -124,8 +131,8 @@ pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow-x:auto;font-size:1
 <div class="stat-card"><div class="stat-value" id="statTotalTrans">-</div><div class="stat-label">總交易筆數</div></div>
 </div>
 <div style="margin-top:16px;">
-<button onclick="exportReport('inventory')">匯出庫存報表</button>
-<button onclick="exportReport('transactions')">匯出交易報表</button>
+<button onclick="exportReport('inventory')">匯出進貨報表</button>
+<button onclick="exportReport('transactions')">匯出出貨報表</button>
 </div>
 <div id="reportResult"></div>
 </div>
@@ -147,6 +154,24 @@ if(name==='inventory')loadInventory();
 else if(name==='reports')loadStats();
 }
 
+function onChannelSelectChange() {
+var sel = document.getElementById("issueChannelSelect");
+var customInput = document.getElementById("issueChannelCustom");
+if(sel.value === "__custom__"){
+customInput.style.display = "block";
+} else {
+customInput.style.display = "none";
+}
+}
+
+function getIssueChannel() {
+var sel = document.getElementById("issueChannelSelect");
+if(sel.value === "__custom__"){
+return document.getElementById("issueChannelCustom").value.trim() || "其他";
+}
+return sel.value;
+}
+
 function doLogin() {
 var u = document.getElementById("username").value.trim();
 var p = document.getElementById("password").value;
@@ -161,7 +186,7 @@ if(!r.ok)return r.json().then(function(e){throw new Error('登入失敗:'+r.stat
 return r.json();
 }).then(function(d){
 token=d.access_token;user=d;
-el.innerHTML='<span class="status-success">登入成功！門店:'+d.store_id+'</span>';
+el.innerHTML='<span class="status-success">登入成功！角色:'+d.role+' 門店:'+d.store_id+'</span>';
 btn.innerHTML='登入成功';
 document.getElementById("loginCard").style.display="none";
 document.getElementById("mainApp").style.display="block";
@@ -234,16 +259,14 @@ fetch(API+'/inventory?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).the
 tb.innerHTML="";
 if(d.length===0){tb.innerHTML='<tr><td colspan="5">無資料</td></tr>';}
 else{
-var hasStock = d.filter(function(p){return p.total_qty_g>0;});
-var displayList = hasStock.length > 0 ? hasStock : d.slice(0, 20);
-displayList.forEach(function(p){
+d.forEach(function(p){
 var tr=document.createElement("tr");
 var b=p.total_qty_g>0?'<span class="badge badge-success">有庫存</span>':'<span class="badge badge-warning">缺貨</span>';
 tr.innerHTML='<td>'+p.sku_no+'</td><td>'+p.name+'</td><td>'+p.total_qty_g+'</td><td>'+p.batch_count+'</td><td>'+b+'</td>';
 tb.appendChild(tr);
 });
 }
-el.textContent="已載入 "+d.length+" 筆 SKU 資料（顯示有庫存或前20筆）";
+el.textContent="已載入 "+d.length+" 筆有庫存 SKU 資料";
 }).catch(function(e){el.textContent=e.message;});
 }
 
@@ -275,11 +298,13 @@ function doIssue() {
 var el=document.getElementById("issueResult");
 var skuSelect = document.getElementById("issueSkuNo");
 if(!skuSelect.value){el.innerHTML='<div class="alert alert-error">請選擇 SKU</div>';return;}
+var channel = getIssueChannel();
+if(!channel){el.innerHTML='<div class="alert alert-error">請輸入通路名稱</div>';return;}
 var payload={
 "sku_no": Number(skuSelect.value),
 "qty_g": Number(document.getElementById("issueQty").value),
 "sell_price_ntd_per_100g": Number(document.getElementById("issuePrice").value),
-"channel": document.getElementById("issueChannel").value
+"channel": channel
 };
 el.innerHTML='<div class="alert alert-info">處理中...</div>';
 fetch(API+'/transactions/issue',{method:"POST",headers:hdrs(),body:JSON.stringify(payload),mode:'cors'}).then(function(r){
@@ -307,7 +332,10 @@ document.getElementById("statTotalTrans").textContent=transData.length;
 function exportReport(type) {
 var el=document.getElementById("reportResult");
 el.innerHTML='<div class="alert alert-info">產生報表中...</div>';
-fetch(API+'/reports/'+type+'?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){return r.blob();}).then(function(blob){
+fetch(API+'/reports/'+type+'?store_id='+user.store_id,{headers:hdrs(),mode:'cors'}).then(function(r){
+if(!r.ok)return r.json().then(function(e){throw new Error('失敗:'+r.status+' '+JSON.stringify(e));});
+return r.blob();
+}).then(function(blob){
 var url=window.URL.createObjectURL(blob);
 var a=document.createElement('a');
 a.href=url;a.download=type+'_report.csv';
